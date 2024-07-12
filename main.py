@@ -128,7 +128,7 @@ class Options:
     def __init__(self):
         # Load the Glade file
         self.builder = Gtk.Builder()
-        self.builder.add_from_file(get_resource_path("gtk/options.glade"))
+        self.builder.add_from_file(get_resource_path("gtk/options.xml"))
 
         # Get the main window and connect the destroy signal
         self.main_window = self.builder.get_object("optionsWindow")
@@ -255,7 +255,7 @@ class Setup:
     def __init__(self):
         # Load the Glade file
         self.builder = Gtk.Builder()
-        self.builder.add_from_file(get_resource_path("gtk/setup.glade"))
+        self.builder.add_from_file(get_resource_path("gtk/setup.xml"))
 
         # Get the main window and connect the destroy signal
         self.main_window = self.builder.get_object("setupWindow")
