@@ -3,14 +3,13 @@ print("""
 # Made by fridge (https://fridg3.org)
 # Created on 10/07/2024\n""")
 
-import gi, pygame, setproctitle, threading, sys, os
+import gi, pygame, setproctitle, threading, sys, os, platform, json, random
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 from pathlib import Path
 from screeninfo import get_monitors
 
 setproctitle.setproctitle("frdgCanvas")
-clock = pygame.time.Clock()
 
 # Fetches the current resource path, allowing for relative file paths to work
 # both when running in Python and as an executable. Call this function with a file path
@@ -38,6 +37,8 @@ class Canvas:
         
         self.bgcolour = (bg_r, bg_g, bg_b)
         self.pencolour = (40, 40, 40)
+
+        self.pentexture = "Default"
         
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
         pygame.display.set_caption('frdgCanvas - ' + self.project_name + '.png')
@@ -105,11 +106,48 @@ class Canvas:
             self.canvas[grid_y][grid_x] = self.pencolour
 
     def draw_pen(self, position):
-        # TODO: Custom brushes
-        pygame.draw.circle(self.screen, self.pencolour, position, self.pen_size // 2)
-        if self.last_pos:
-            pygame.draw.line(self.screen, self.pencolour, self.last_pos, position, self.pen_size * 2)
-        self.last_pos = position
+        if self.pentexture == "Default":
+            pygame.draw.rect(self.screen, self.pencolour, (position[0], position[1], self.pen_size, self.pen_size))
+            if self.last_pos:
+                pygame.draw.line(self.screen, self.pencolour, self.last_pos, position, self.pen_size * 2)
+            self.last_pos = position
+        else: # Custom brush
+            brushDirectory = os.path.join(optionsWindow.brushDirectory, self.pentexture)
+            brushProperties = json.load(open(os.path.join(brushDirectory, "properties.json")))
+            brushDrawLine = brushProperties["drawLine"]
+            brushLineSize = brushProperties["lineSize"]
+            brushUseColour = brushProperties["useColour"]
+            brushRotate = brushProperties["rotate"]
+            brushTextureAmount = brushProperties["textureAmount"]
+
+            if brushTextureAmount <= 1:
+                brushTexture = pygame.transform.scale(pygame.image.load(
+                os.path.join(brushDirectory, "texture.png")).convert_alpha(), 
+                (self.pen_size+10, self.pen_size+10))
+            else:
+                currentTexture = "texture" + str(random.randint(1,brushTextureAmount)) + ".png"
+                brushTexture = pygame.transform.scale(pygame.image.load(
+                    os.path.join(brushDirectory, currentTexture)).convert_alpha(), 
+                    (self.pen_size+10, self.pen_size+10))
+                
+            if brushUseColour:
+                tintSurface = pygame.Surface(brushTexture.get_size(), pygame.SRCALPHA)
+                tintSurface.fill(self.pencolour)
+                brushTexture.blit(tintSurface, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+            if brushRotate:
+                brushTexture = pygame.transform.rotate(brushTexture, random.randint(0, 360))
+            
+            if brushDrawLine:
+                if self.last_pos:
+                    adjustedLineSize = self.pen_size * 2 + brushLineSize
+                    adjustedLineSize = max(1, adjustedLineSize)  # Ensure line size is at least 1
+                    pygame.draw.line(self.screen, self.pencolour, self.last_pos, position, adjustedLineSize)
+            self.last_pos = position
+
+            texture_width, texture_height = brushTexture.get_size()
+            top_left_position = (position[0] - texture_width // 2, position[1] - texture_height // 2)
+            self.screen.blit(brushTexture, top_left_position)
 
     def clear_canvas(self):
         self.canvas = [[self.bgcolour for _ in range(self.canvas_width)] for _ in range(self.canvas_height)]
@@ -125,8 +163,6 @@ class Canvas:
                     self.draw_grid()
             self.handle_events()
             pygame.display.flip()
-            pygame.display.update()
-            clock.tick(60)
         pygame.quit()
         global optionsWindow
         optionsWindow.main_window.destroy()
@@ -164,16 +200,57 @@ class Options:
             print("One or more widgets not found in options.xml. Options window will not work.")
             return
         
-        brushes = Gtk.ListStore(str)
-        # TODO: Automatically load brushes from a directory
-        brushes.append(["Option 1"])
-        brushes.append(["Option 2"])
-        brushes.append(["Option 3"])
+        # Find + define config directory
+        system = platform.system()
+        if system == "Linux":
+            self.config_dir = os.path.expanduser("~/.config/frdgCanvas")
+        elif system == "Windows":
+            appdata = os.environ.get("APPDATA")
+            self.config_dir = os.path.join(os.path.dirname(appdata), "frdgCanvas") if appdata else None
+        elif system == "Darwin":
+            self.config_dir = os.path.expanduser("~/Library/Application Support/frdgCanvas")
+        else:
+            self.config_dir = None
+            print("Unknown operating system. Configuration directory will not be created.")
+
+        if self.config_dir:
+            os.makedirs(self.config_dir, exist_ok=True)
+            print(f"Using configuration directory: {self.config_dir}")
+
+        # Create necessary config directories
+        def checkDirectory(path):
+            if not os.path.exists(path) and not self.config_dir is None:
+                os.makedirs(path)
+                print(f"Directory '{path}' not found - created.")
+
+        self.brushDirectory = self.config_dir + "/brushes"
+        checkDirectory(self.brushDirectory)
+
+        brushes = Gtk.ListStore(str, str)
+        brushes.append(["Default","The default brush."]) #FIXME - Description does not load unless this brush is re-selected
+        
+        # Populate the brush list
+        for item in os.listdir(self.brushDirectory):
+            itemPath = os.path.join(self.brushDirectory, item)
+            if os.path.isdir(itemPath):
+                properties_path = os.path.join(itemPath, "properties.json")
+                if os.path.isfile(properties_path):
+                    try:
+                        with open(properties_path, 'r') as file:
+                            properties = json.load(file)
+                            brush_name = properties.get('name', 'Custom')
+                            brush_author = properties.get('author', 'Unknown')
+                            brush_description = properties.get('description', 'A custom brush.')
+                            brush_name = f"[{brush_author}] {brush_name}"
+                            brushes.append([brush_name, brush_description])
+                    except Exception as e:
+                        print(f"Error reading {properties_path}: {e}")
 
         self.brushSelect.set_model(brushes)
         renderer_text = Gtk.CellRendererText()
         self.brushSelect.pack_start(renderer_text, True)
         self.brushSelect.add_attribute(renderer_text, "text", 0)
+        self.brushSelect.set_active_iter(brushes.get_iter_first())
 
 
         # Connect signals
@@ -232,8 +309,17 @@ class Options:
         model = widget.get_model()
         index = widget.get_active()
         if index >= 0:
-            text = model[index][0]
-            print(f"Selected: {text}")
+            selected = model[index][0]
+            selected_description = model[index][1]
+            global canvasWindow
+            canvasWindow.pentexture = selected
+            print(f"Brush selected: {selected} - {selected_description}")
+
+        # Change tooltip text to brush description
+        active_iter = widget.get_active_iter()
+        if active_iter is not None:
+            name, description = model[active_iter][:2]
+            widget.set_tooltip_text(description)
 
     def on_togglegrid_clicked(self, widget):
         global canvasWindow

@@ -1,4 +1,6 @@
 /.venv
 /build/build.spec
+/build/build/
+/build/dist/
 /gtk/options.xml~
 /gtk/setup.xml~

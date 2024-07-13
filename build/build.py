@@ -2,12 +2,13 @@ print("""
 # frdgCanvas Cross-System build script
 # Made by fridge (https://fridg3.org)
 # Created on 12/07/2024, currently supports any Windows and Unix (MacOS/Linux) systems.
+      
+# This script should be in the 'build' directory, and the main script should be in the parent directory.
 
 Please make sure you have all the necessary dependencies installed before installing!
 If you're using a virtual environment, place it in the directory above where this script is.\n""")
 
-import os
-import fnmatch
+import os, fnmatch
 
 # build.spec requires a pathex to be specified if a virtual environment is in use.
 # This function checks for the presence of a virtual environment, and finds where site-packages should be based on OS.
@@ -31,6 +32,10 @@ def get_pathex():
 
 
 if __name__ == "__main__":
+    if os.getcwd() != '/build':
+            print("Changing the current working directory to /build")
+            os.chdir('build/')
+
     pathex = get_pathex()
     print(f"Pathex directory decided: {pathex}")
     with open("build.spec", "w") as f:
@@ -76,8 +81,8 @@ if __name__ == "__main__":
     choice = input("\nWould you like to build the executable now? (y/n): ")
     if choice.lower() == "y":
         os.system("pyinstaller build.spec")
-        print("\nBuilt successfully.\nExecutable is in 'dist' directory.")
+        print("\nProcess finished.\nExecutable in 'dist' directory.\n\nIf you cannot find it, make sure you've installed all the requirements.")
         exit(0)
     else:
-        print("You can run 'pyinstaller build.spec' to build the executable at any time.")
+        print("Process finished.\nYou can run 'pyinstaller build.spec' to build the executable at any time.")
         exit(0)
