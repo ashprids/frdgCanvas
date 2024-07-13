@@ -3,15 +3,18 @@ print("""
 # Made by fridge (https://fridg3.org)
 # Created on 10/07/2024\n""")
 
-import gi, pygame, setproctitle, threading, sys, os, tempfile
+import gi, pygame, setproctitle, threading, sys, os
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
+from pathlib import Path
+from screeninfo import get_monitors
 
 setproctitle.setproctitle("frdgCanvas")
 clock = pygame.time.Clock()
 
 # Fetches the current resource path, allowing for relative file paths to work
-# both when running in Python and as an executable
+# both when running in Python and as an executable. Call this function with a file path
+# if the file is expected to be compiled with the executable.
 def get_resource_path(relative_path):
     try:
         base_path = sys._MEIPASS
@@ -24,31 +27,36 @@ def get_resource_path(relative_path):
 
 # Canvas window
 class Canvas:
-    def __init__(self, name, width, height, gridMode, bg_r, bg_g, bg_b):
+    def __init__(self, name, width, height, bg_r, bg_g, bg_b, fullscreen, gridMode, gridSize, grid_r, grid_g, grid_b):
         pygame.init()
 
         self.screen_width = width
         self.screen_height = height
         self.project_name = name
-        self.pixel_size = 15
+        self.pixel_size = gridSize
+        self.pen_size = 4
         
         self.bgcolour = (bg_r, bg_g, bg_b)
         self.pencolour = (40, 40, 40)
-        self.gridcolour = (200, 200, 200)
         
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
         pygame.display.set_caption('frdgCanvas - ' + self.project_name + '.png')
         pygame.display.set_icon(pygame.image.load(get_resource_path('assets/icon.png')))
         
-        
         self.canvas_width = self.screen_width // self.pixel_size
         self.canvas_height = self.screen_height // self.pixel_size
         self.canvas = [[self.bgcolour for _ in range(self.canvas_width)] for _ in range(self.canvas_height)]
+
+        self.gridVisible = False
+        self.gridcolour = (grid_r, grid_g, grid_b)
+        self.grid_mode = gridMode
+        if self.grid_mode:
+            self.pen_size = self.pixel_size
+            global optionsWindow
+        optionsWindow.penSize.set_value(self.pen_size)
         
         self.drawing = False
-        self.grid_mode = gridMode
-        self.gridVisible = False
-        self.last_pos = None  # Track the last mouse position
+        self.last_pos = None 
 
     def draw_grid(self):
         for x in range(0, self.screen_width, self.pixel_size):
@@ -88,6 +96,7 @@ class Canvas:
                     else:
                         self.draw_pixel(event.pos)
 
+    
     def draw_pixel(self, position):
         mouse_x, mouse_y = position
         grid_x = mouse_x // self.pixel_size
@@ -96,9 +105,10 @@ class Canvas:
             self.canvas[grid_y][grid_x] = self.pencolour
 
     def draw_pen(self, position):
-        pygame.draw.rect(self.screen, self.pencolour, (position[0] - self.pixel_size // 2, position[1] - self.pixel_size // 2, self.pixel_size, self.pixel_size))
+        # TODO: Custom brushes
+        pygame.draw.circle(self.screen, self.pencolour, position, self.pen_size // 2)
         if self.last_pos:
-            pygame.draw.line(self.screen, self.pencolour, self.last_pos, position, self.pixel_size * 2)
+            pygame.draw.line(self.screen, self.pencolour, self.last_pos, position, self.pen_size * 2)
         self.last_pos = position
 
     def clear_canvas(self):
@@ -110,7 +120,6 @@ class Canvas:
         global canvasRunning
         while canvasRunning:
             if self.grid_mode:
-                self.screen.fill(self.bgcolour)
                 self.draw_canvas()
                 if self.gridVisible:
                     self.draw_grid()
@@ -125,7 +134,7 @@ class Canvas:
 
 
 class Options:
-    def __init__(self):
+    def __init__(self, fullscreen):
         # Load the Glade file
         self.builder = Gtk.Builder()
         self.builder.add_from_file(get_resource_path("gtk/options.xml"))
@@ -137,9 +146,13 @@ class Options:
             return
         self.main_window.connect("destroy", Gtk.main_quit)
 
+        if fullscreen:
+            self.main_window.set_keep_above(True)
+
         # Get widgets
         self.penColour = self.builder.get_object("penColour")
         self.penSize = self.builder.get_object("penSize")
+        self.brushSelect = self.builder.get_object("brushSelect")
         self.togglegrid = self.builder.get_object("hideGrid")
         self.clear = self.builder.get_object("clear")
         self.apply = self.builder.get_object("apply")
@@ -147,18 +160,32 @@ class Options:
         self.export = self.builder.get_object("export")
 
         # Check if widgets are found
-        if not all([self.penColour, self.penSize, self.togglegrid, self.clear, self.close, self.export]):
-            print("One or more widgets not found in the Glade file. Options window will not work.")
+        if not all([self.penColour, self.penSize, self.brushSelect, self.togglegrid, self.clear, self.close, self.export]):
+            print("One or more widgets not found in options.xml. Options window will not work.")
             return
+        
+        brushes = Gtk.ListStore(str)
+        # TODO: Automatically load brushes from a directory
+        brushes.append(["Option 1"])
+        brushes.append(["Option 2"])
+        brushes.append(["Option 3"])
+
+        self.brushSelect.set_model(brushes)
+        renderer_text = Gtk.CellRendererText()
+        self.brushSelect.pack_start(renderer_text, True)
+        self.brushSelect.add_attribute(renderer_text, "text", 0)
+
 
         # Connect signals
         self.main_window.connect("delete-event", self.on_delete_event)
         self.penColour.connect("notify::rgba", self.on_pen_colour_changed)
         self.penSize.connect("value-changed", self.on_pen_size_changed)
+        self.brushSelect.connect("changed", self.on_brush_changed)
         self.togglegrid.connect("clicked", self.on_togglegrid_clicked)
         self.clear.connect("clicked", self.on_clear_clicked)
         self.close.connect("clicked", self.on_close_clicked)
         self.export.connect("clicked", self.on_export_clicked)
+        
 
     def show_confirm_dialog(self):
         dialog = Gtk.MessageDialog(
@@ -197,11 +224,17 @@ class Options:
         canvasWindow.pencolour = pencolour
 
     def on_pen_size_changed(self, widget):
-        penSize = widget.get_value_as_int()
-        
+        newSize = widget.get_value_as_int()
         global canvasWindow
-        canvasWindow.pixel_size = penSize
-    
+        canvasWindow.pen_size = newSize
+
+    def on_brush_changed(self, widget):
+        model = widget.get_model()
+        index = widget.get_active()
+        if index >= 0:
+            text = model[index][0]
+            print(f"Selected: {text}")
+
     def on_togglegrid_clicked(self, widget):
         global canvasWindow
         canvasWindow.gridVisible = not canvasWindow.gridVisible
@@ -222,7 +255,7 @@ class Options:
     def on_export_clicked(self, widget):
         dialog = Gtk.FileChooserDialog(
             title="Save File",
-            parent=self.main_window,  # Assuming self.main_window is your main application window
+            parent=self.main_window,
             action=Gtk.FileChooserAction.SAVE
         )
         dialog.add_buttons(
@@ -240,6 +273,8 @@ class Options:
 
         global canvasWindow
         dialog.set_current_name(canvasWindow.project_name + ".png")
+        pictures_path = str(Path.home() / "Pictures")
+        dialog.set_current_folder(pictures_path)
 
         # Show the dialog and wait for a response
         response = dialog.run()
@@ -260,7 +295,7 @@ class Setup:
         # Get the main window and connect the destroy signal
         self.main_window = self.builder.get_object("setupWindow")
         if not self.main_window:
-            print("Could not find setupWindow in the Glade file.")
+            print("Could not find setupWindow in the XML file.")
             return
         self.main_window.connect("destroy", Gtk.main_quit)
 
@@ -269,13 +304,17 @@ class Setup:
         self.width_entry = self.builder.get_object("windowWidth")
         self.height_entry = self.builder.get_object("windowHeight")
         self.bgColour = self.builder.get_object("backgroundColour")
-        self.grid_button = self.builder.get_object("gridMode")
+        self.fullscreen = self.builder.get_object("fullscreen")
         self.submit_button = self.builder.get_object("createCanvas")
         self.close_button = self.builder.get_object("close")
 
+        self.grid_button = self.builder.get_object("gridMode")
+        self.gridColour = self.builder.get_object("gridColour")
+        self.pixel_size = self.builder.get_object("pixelSize")
+
         # Check if widgets are found
-        if not all([self.name_entry, self.width_entry, self.height_entry, self.bgColour, self.grid_button, self.submit_button, self.close_button]):
-            print("One or more widgets not found in the Glade file.")
+        if not all([self.name_entry, self.width_entry, self.height_entry, self.bgColour, self.grid_button, self.submit_button, self.close_button, self.gridColour, self.pixel_size, self.fullscreen]):
+            print("One or more widgets not found in the XML file. Closing.")
             return
 
         # Connect signals
@@ -286,35 +325,64 @@ class Setup:
         self.main_window.destroy()
         sys.exit()
 
+    def invalid_input(self):
+        dialog = Gtk.MessageDialog(
+            parent=self.main_window,
+            modal=True,
+            type=Gtk.MessageType.ERROR,
+            buttons=Gtk.ButtonsType.CLOSE,
+            message_format="Invalid input provided.\nMake sure the project name only contains alphanumeric characters, and the width and height are numbers."
+        )
+        dialog.set_title("Error")
+        response = dialog.run()
+        dialog.destroy()
+        return response
+
     def on_submit_clicked(self, widget):
         name = self.name_entry.get_text()
         width = self.width_entry.get_text()
         height = self.height_entry.get_text()
         bgColour = self.bgColour.get_rgba()
+        fullscreen = self.fullscreen.get_active()
+
+        if fullscreen:
+            for monitor in get_monitors():
+                if monitor.is_primary:
+                    width = str(monitor.width)
+                    height = str(monitor.height)
+
         gridMode = self.grid_button.get_active()
+        pixelSize = self.pixel_size.get_text()
+        gridColour = self.gridColour.get_rgba()
 
-        self.main_window.destroy()
-        while Gtk.events_pending(): # Ensure the window is destroyed before creating the canvas
-            Gtk.main_iteration()
+        if name.isalnum() and width.isdigit() and height.isdigit():
+            self.main_window.destroy()
+            while Gtk.events_pending():
+                Gtk.main_iteration()
+            print(f"Creating project '{name}'")
+            def startCanvas():
+                global canvasWindow
+                # *breathe in*
+                canvasWindow = Canvas(name, int(width), int(height), int(bgColour.red * 255), int(bgColour.green * 255), int(bgColour.blue * 255), bool(fullscreen), bool(gridMode), int(pixelSize), int(gridColour.red * 255), int(gridColour.green * 255), int(gridColour.blue * 255))
+                # *breathe out*
+                canvasWindow.run()
 
-        print(f"Creating project '{name}' with a resolution of {width}px x {height}px and background colour RGB({int(bgColour.red * 255)}, {int(bgColour.green * 255)}, {int(bgColour.blue * 255)})")
-        def startCanvas():
-            global canvasWindow
-            canvasWindow = Canvas(name, int(width), int(height), bool(gridMode), int(bgColour.red * 255), int(bgColour.green * 255), int(bgColour.blue * 255))
-            canvasWindow.run()
+            global canvasRunning
+            canvasRunning = True
+            canvasThread = threading.Thread(target=startCanvas)
+            canvasThread.start()
+            print("Canvas thread started")
 
-        global canvasRunning
-        canvasRunning = True
-        canvasThread = threading.Thread(target=startCanvas)
-        canvasThread.start()
-        print("Canvas thread started")
+            global optionsWindow
+            optionsWindow = Options(fullscreen)
+            print("Options window started")
+            if optionsWindow.main_window:
+                optionsWindow.main_window.show_all()
+                Gtk.main()
 
-        global optionsWindow
-        optionsWindow = Options()
-        print("Options window started")
-        if optionsWindow.main_window:
-            optionsWindow.main_window.show_all()
-            Gtk.main()
+        else:
+            print("Error: Invalid input provided for project creation")
+            self.invalid_input()
 
 
 

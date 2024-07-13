@@ -4,10 +4,10 @@
   <requires lib="gtk+" version="3.24"/>
   <object class="GtkAdjustment" id="penSizeAdjustment">
     <property name="lower">1</property>
-    <property name="upper">4000</property>
+    <property name="upper">50</property>
     <property name="value">1</property>
     <property name="step-increment">1</property>
-    <property name="page-increment">10</property>
+    <property name="page-increment">2</property>
   </object>
   <object class="GtkWindow" id="optionsWindow">
     <property name="can-focus">False</property>
@@ -15,8 +15,9 @@
     <property name="resizable">False</property>
     <property name="window-position">center</property>
     <property name="icon">../assets/icon.png</property>
+    <property name="accept-focus">False</property>
     <child>
-      <!-- n-columns=3 n-rows=5 -->
+      <!-- n-columns=3 n-rows=6 -->
       <object class="GtkGrid">
         <property name="visible">True</property>
         <property name="can-focus">False</property>
@@ -38,7 +39,7 @@ Close this window any other way to only close this window. You can re-open this 
           </object>
           <packing>
             <property name="left-attach">0</property>
-            <property name="top-attach">4</property>
+            <property name="top-attach">5</property>
           </packing>
         </child>
         <child>
@@ -51,7 +52,7 @@ Close this window any other way to only close this window. You can re-open this 
           </object>
           <packing>
             <property name="left-attach">1</property>
-            <property name="top-attach">4</property>
+            <property name="top-attach">5</property>
             <property name="width">2</property>
           </packing>
         </child>
@@ -60,7 +61,7 @@ Close this window any other way to only close this window. You can re-open this 
             <property name="visible">True</property>
             <property name="can-focus">False</property>
             <property name="halign">start</property>
-            <property name="label" translatable="yes">Pen Size (px)</property>
+            <property name="label" translatable="yes">Pen Size</property>
           </object>
           <packing>
             <property name="left-attach">0</property>
@@ -71,10 +72,10 @@ Close this window any other way to only close this window. You can re-open this 
           <object class="GtkSpinButton" id="penSize">
             <property name="visible">True</property>
             <property name="can-focus">True</property>
-            <property name="placeholder-text" translatable="yes">Pen width in pixels</property>
+            <property name="placeholder-text" translatable="yes">Pen/pixel width</property>
             <property name="input-purpose">number</property>
             <property name="adjustment">penSizeAdjustment</property>
-            <property name="value">15</property>
+            <property name="value">4</property>
           </object>
           <packing>
             <property name="left-attach">1</property>
@@ -92,7 +93,7 @@ Close this window any other way to only close this window. You can re-open this 
           </object>
           <packing>
             <property name="left-attach">0</property>
-            <property name="top-attach">3</property>
+            <property name="top-attach">4</property>
             <property name="width">3</property>
           </packing>
         </child>
@@ -108,7 +109,7 @@ Toggles the rendering of the grid's outline. Ideal when exporting, as the grid w
           </object>
           <packing>
             <property name="left-attach">0</property>
-            <property name="top-attach">2</property>
+            <property name="top-attach">3</property>
             <property name="width">3</property>
           </packing>
         </child>
@@ -124,6 +125,29 @@ Toggles the rendering of the grid's outline. Ideal when exporting, as the grid w
             <property name="left-attach">0</property>
             <property name="top-attach">0</property>
             <property name="width">3</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkLabel">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="halign">start</property>
+            <property name="label" translatable="yes">Brush Texture</property>
+          </object>
+          <packing>
+            <property name="left-attach">0</property>
+            <property name="top-attach">2</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkComboBox" id="brushSelect">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+          </object>
+          <packing>
+            <property name="left-attach">1</property>
+            <property name="top-attach">2</property>
+            <property name="width">2</property>
           </packing>
         </child>
       </object>
