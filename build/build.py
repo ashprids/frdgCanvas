@@ -1,5 +1,5 @@
 print("""
-# frdgCanvas Cross-System build script
+# frdgCanvas Cross-Platform build script
 # Made by fridge (https://fridg3.org)
 # Created on 12/07/2024, currently supports any Windows and Unix (MacOS/Linux) systems.
       
@@ -8,7 +8,25 @@ print("""
 Please make sure you have all the necessary dependencies installed before installing!
 If you're using a virtual environment, place it in the directory above where this script is.\n""")
 
-import os, fnmatch
+import os, fnmatch, sys
+
+# Find an OS-appropriate solution for immediate input
+def get_key():
+    try:
+        # Windows
+        import msvcrt
+        return msvcrt.getch().decode().lower()
+    except ImportError:
+        # Unix
+        import tty, termios
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(sys.stdin.fileno())
+            ch = sys.stdin.read(1).lower()
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return ch
 
 # build.spec requires a pathex to be specified if a virtual environment is in use.
 # This function checks for the presence of a virtual environment, and finds where site-packages should be based on OS.
@@ -25,16 +43,17 @@ def get_pathex():
         return "."
 
     # Check the OS and return the appropriate pathex directory
-    if os.name == 'nt': # Windows
-        return f"../{venv}/Lib/site-packages"
-    else: # Unix
-        return f"../{venv}/lib/python3.10/site-packages"
+    if os.name == 'nt':
+        return os.path.join("..", venv, "Lib", "site-packages")
+    else:
+        return os.path.join("..", venv, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages")
 
 
 if __name__ == "__main__":
-    if os.getcwd() != '/build':
-            print("Changing the current working directory to /build")
-            os.chdir('build/')
+    build_dir = os.path.join('build')
+    if os.getcwd() != build_dir:
+        print(f"Changing the current working directory to /{build_dir}")
+        os.chdir(build_dir)
 
     pathex = get_pathex()
     print(f"Pathex directory decided: {pathex}")
@@ -78,11 +97,14 @@ if __name__ == "__main__":
         f.write(f"    icon=['../assets/icon.ico'],\n")
         f.write(f")\n")
     print("build.spec written successfully.")
-    choice = input("\nWould you like to build the executable now? (y/n): ")
-    if choice.lower() == "y":
+    print("\nWould you like to build the executable now? (y/n): ", end='', flush=True)
+
+    choice = get_key()
+    if choice == "y":
+        print("Building...")
         os.system("pyinstaller build.spec")
-        print("\nProcess finished.\nExecutable in 'dist' directory.\n\nIf you cannot find it, make sure you've installed all the requirements.")
+        print("\nProcess finished.\nExecutable in 'dist' directory.")
         exit(0)
     else:
-        print("Process finished.\nYou can run 'pyinstaller build.spec' to build the executable at any time.")
+        print("Process finished.\nYou can rerun this script or run 'pyinstaller build.spec' to build the executable at any time.")
         exit(0)
