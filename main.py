@@ -3,7 +3,7 @@ print("""
 # Made by fridge (https://fridg3.org)
 # Created on 10/07/2024\n""")
 
-import gi, pygame, setproctitle, threading, sys, os, platform, json, random, zipfile, shutil, subprocess
+import gi, pygame, setproctitle, threading, sys, os, platform, json, random, zipfile, shutil, subprocess, time
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 from pathlib import Path
@@ -19,7 +19,6 @@ def get_resource_path(relative_path):
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
-
     return os.path.join(base_path, relative_path)
 
 def setupProject():
@@ -466,7 +465,7 @@ class Setup:
             self.config_dir = os.path.expanduser("~/.config/frdgCanvas")
         elif system == "Windows":
             appdata = os.environ.get("APPDATA")
-            self.config_dir = os.path.join(os.path.dirname(appdata), "frdgCanvas") if appdata else None
+            self.config_dir = os.path.join(os.path.dirname(appdata), "Local", "frdgCanvas") if appdata else None
         elif system == "Darwin":
             self.config_dir = os.path.expanduser("~/Library/Application Support/frdgCanvas")
         else:
@@ -564,13 +563,15 @@ class Setup:
             brush_name = properties.get('name', 'Custom')
             brush_author = properties.get('author', 'Unknown')
             brush_description = properties.get('description', 'A custom brush.')
-            try:
-                os.rename(os.path.join(self.brushDirectory, ".temp"), os.path.join(self.brushDirectory, ("[" + brush_author + "] " + brush_name)))
-                print(f"Installed brush: {brush_name} by {brush_author} - {brush_description}")
-                self.installdialog(f"Success! Installed brush: \n\n{brush_name} by {brush_author} - {brush_description}")
-            except:
+
+            if os.path.isdir(os.path.join(self.brushDirectory, ("["+brush_author+"] "+brush_name))):
                 print(f"The brush '{brush_name}' by '{brush_author}' is already installed.")
                 self.installdialog(f"The brush '{brush_name}' by '{brush_author}' is already installed.")
+            else:
+                shutil.copytree(os.path.join(self.brushDirectory, ".temp"), os.path.join(self.brushDirectory, ("["+brush_author+"] "+brush_name)))
+                print(f"Installed brush: {brush_name} by {brush_author} - {brush_description}")
+                self.installdialog(f"Success! Installed brush: \n\n{brush_name} by {brush_author} - {brush_description}")
+
 
         if os.path.isdir(os.path.join(self.brushDirectory, ".temp")):
             shutil.rmtree(os.path.join(self.brushDirectory, ".temp"))
@@ -624,12 +625,12 @@ class Setup:
             global canvasRunning
             canvasRunning = True
             canvasThread = threading.Thread(target=startCanvas)
-            canvasThread.start()
-            print("Canvas thread started")
 
             global optionsWindow
             optionsWindow = Options(fullscreen)
             print("Options window started")
+            canvasThread.start()
+            print("Canvas thread started")
             if optionsWindow.main_window:
                 optionsWindow.main_window.show_all()
                 Gtk.main()
